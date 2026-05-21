@@ -21,7 +21,11 @@ CLIPS_DIR    = BASE_DIR / "clips"               # your own footage (drop MP4s he
 TS_DIR       = BASE_DIR / "timestamps"
 HF_CACHE     = "E:/hf-cache"
 
-for d in [OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, TS_DIR]:
+STEMS_DIR    = BASE_DIR / "stems"      # Demucs vocal separation output
+UPSCALED_DIR = BASE_DIR / "upscaled"   # AI upscaled clips
+FONTS_DIR    = BASE_DIR / "fonts"      # Google Fonts
+
+for d in [OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, TS_DIR, STEMS_DIR, UPSCALED_DIR, FONTS_DIR]:
     d.mkdir(exist_ok=True)
 
 # ── Section key helper ────────────────────────────────────────────────────────

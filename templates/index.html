@@ -138,50 +138,88 @@
     <div class="song-meta" id="song-meta"></div>
   </div>
 
-  <!-- Pipeline -->
-  <div class="section-title" style="margin-top:28px;">Pipeline</div>
+  <!-- Audio Tools -->
+  <div class="section-title" style="margin-top:28px;">Audio Tools</div>
   <div class="pipeline">
-
+    <div class="step" id="step-vocals">
+      <div class="step-status" id="dot-vocals"></div>
+      <div class="step-num">Audio 1</div>
+      <h3>Separate Vocals</h3>
+      <p>Demucs isolates your voice from the instrumental — makes Whisper sync much more accurate.</p>
+      <button class="btn btn-purple" id="btn-vocals" onclick="runJob('vocals')" disabled>Separate Vocals</button>
+    </div>
+    <div class="step" id="step-beats">
+      <div class="step-status" id="dot-beats"></div>
+      <div class="step-num">Audio 2</div>
+      <h3>Analyze Beats</h3>
+      <p>Librosa detects BPM, beat timestamps, and energy peaks to sync cuts to the music.</p>
+      <button class="btn btn-purple" id="btn-beats" onclick="runJob('beats')" disabled>Analyze Beats</button>
+    </div>
     <div class="step" id="step-sync">
       <div class="step-status" id="dot-sync"></div>
-      <div class="step-num">Step 1</div>
+      <div class="step-num">Audio 3</div>
       <h3>Sync Lyrics</h3>
-      <p>Whisper listens to the audio and timestamps every lyric line automatically.</p>
+      <p>Whisper auto-timestamps every lyric line. Run after Separate Vocals for best accuracy.</p>
       <button class="btn btn-purple" id="btn-sync" onclick="runJob('sync')" disabled>Run Whisper Sync</button>
     </div>
+  </div>
 
+  <!-- Video Generation -->
+  <div class="section-title" style="margin-top:28px;">Video Generation</div>
+  <div class="pipeline">
     <div class="step" id="step-backgrounds">
       <div class="step-status" id="dot-backgrounds"></div>
-      <div class="step-num">Step 2</div>
+      <div class="step-num">Video 1</div>
       <h3>Generate Images</h3>
-      <p>Stable Diffusion creates a still background image for each song section.</p>
-      <button class="btn btn-purple" id="btn-backgrounds" onclick="runJob('backgrounds')" disabled>Generate Images</button>
+      <p>Stable Diffusion creates a cinematic background image for each song section.</p>
+      <button class="btn btn-blue" id="btn-backgrounds" onclick="runJob('backgrounds')" disabled>Generate (SD)</button>
     </div>
-
     <div class="step" id="step-animate">
       <div class="step-status" id="dot-animate"></div>
-      <div class="step-num">Step 3a</div>
+      <div class="step-num">Video 2</div>
       <h3>Animate with SVD</h3>
-      <p>Animates still images into looping clips using Stable Video Diffusion.</p>
+      <p>Stable Video Diffusion animates each still image into a looping clip.</p>
       <button class="btn btn-blue" id="btn-animate" onclick="runJob('animate')" disabled>Animate (SVD)</button>
     </div>
-
     <div class="step" id="step-wan">
       <div class="step-status" id="dot-wan"></div>
-      <div class="step-num">Step 3b</div>
+      <div class="step-num">Video 3</div>
       <h3>Generate with Wan2.1</h3>
-      <p>Text-to-video — generates cinematic clips directly from prompts. No image needed.</p>
+      <p>Text-to-video — cinematic clips generated directly from prompts. No image needed.</p>
       <button class="btn btn-blue" id="btn-wan" onclick="runJob('wan')" disabled>Generate (Wan2.1)</button>
     </div>
+    <div class="step" id="step-upscale">
+      <div class="step-status" id="dot-upscale"></div>
+      <div class="step-num">Video 4</div>
+      <h3>Upscale + Grade</h3>
+      <p>Upscales clips to 1080p and applies cinematic color grading + film grain via FFmpeg.</p>
+      <button class="btn btn-blue" id="btn-upscale" onclick="runJob('upscale')" disabled>Upscale Videos</button>
+    </div>
+  </div>
 
+  <!-- Render & Export -->
+  <div class="section-title" style="margin-top:28px;">Render & Export</div>
+  <div class="pipeline">
     <div class="step" id="step-render">
       <div class="step-status" id="dot-render"></div>
-      <div class="step-num">Step 4</div>
+      <div class="step-num">Export 1</div>
       <h3>Render Lyric Video</h3>
-      <p>Mixes your footage + Wan2.1 + SVD + images into a YouTube-ready MP4.</p>
+      <p>Combines audio + karaoke lyrics + AI backgrounds into a YouTube-ready 1080p MP4.</p>
       <button class="btn btn-green" id="btn-render" onclick="runJob('render')" disabled>Render Video</button>
     </div>
-
+    <div class="step" id="step-srt">
+      <div class="step-status" id="dot-srt"></div>
+      <div class="step-num">Export 2</div>
+      <h3>Export Captions</h3>
+      <p>Generates .srt subtitle file + YouTube chapter markers from your lyric timestamps.</p>
+      <button class="btn btn-green" id="btn-srt" onclick="runJob('srt')" disabled>Export SRT + Chapters</button>
+    </div>
+    <div class="step">
+      <div class="step-num">Export 3</div>
+      <h3>Download Fonts</h3>
+      <p>Get free cinematic Google Fonts: Playfair Display, Cormorant, Bebas Neue, Montserrat.</p>
+      <button class="btn btn-green" onclick="runJobNoSong('fonts')">Download Fonts</button>
+    </div>
   </div>
 
   <!-- Own Footage Drop Zone -->
@@ -258,11 +296,21 @@
     const hasSong  = !!selectedSong;
     const hasAudio = selectedSong?.has_audio;
 
-    document.getElementById('btn-sync').disabled        = !(hasSong && hasAudio);
-    document.getElementById('btn-backgrounds').disabled = !hasSong;
-    document.getElementById('btn-animate').disabled     = !hasSong;
-    document.getElementById('btn-wan').disabled         = !hasSong;
-    document.getElementById('btn-render').disabled      = !(hasSong && hasAudio);
+    const btns = {
+      'btn-vocals':      hasSong && hasAudio,
+      'btn-beats':       hasSong && hasAudio,
+      'btn-sync':        hasSong && hasAudio,
+      'btn-backgrounds': hasSong,
+      'btn-animate':     hasSong,
+      'btn-wan':         hasSong,
+      'btn-upscale':     hasSong,
+      'btn-render':      hasSong && hasAudio,
+      'btn-srt':         hasSong,
+    };
+    for (const [id, enabled] of Object.entries(btns)) {
+      const el = document.getElementById(id);
+      if (el) el.disabled = !enabled;
+    }
   }
 
   // ── Run a pipeline job ──────────────────────────────────────────────────────
@@ -349,6 +397,16 @@
     if (cl) cl.innerHTML = bgData.clips.length
       ? '✓ Your clips: ' + bgData.clips.join(', ')
       : '';
+  }
+
+  async function runJobNoSong(job) {
+    const res = await fetch(`/api/run/${job}`, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({}) });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    activeJob = data.started;
+    document.getElementById('log-panel').textContent = '';
+    setLogStatus(`<span style="color:#dada60">⏳ Running: ${job}…</span>`);
+    pollLog();
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────

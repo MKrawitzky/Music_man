@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, send_from_directory, request
 from config import (
     BASE_DIR, LYRICS_DIR, AUDIO_DIR, OUTPUTS_DIR,
-    BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, TS_DIR, all_songs
+    BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, UPSCALED_DIR, TS_DIR, all_songs
 )
 
 app = Flask(__name__)
@@ -56,9 +56,14 @@ def run_job(job):
 
     jobs = {
         "sync":        "sync_lyrics.py",
+        "vocals":      "separate_vocals.py",
+        "beats":       "analyze_beats.py",
         "backgrounds": "generate_backgrounds.py",
         "animate":     "generate_video_backgrounds.py",
         "wan":         "generate_wan_videos.py",
+        "upscale":     "upscale_videos.py",
+        "srt":         "export_srt.py",
+        "fonts":       "download_fonts.py",
         "render":      "lyric_video.py",
     }
     if job not in jobs:
@@ -99,6 +104,17 @@ def serve_wan(filename):
 @app.route("/clips/<filename>")
 def serve_clip(filename):
     return send_from_directory(str(CLIPS_DIR), filename)
+
+@app.route("/upscaled/<filename>")
+def serve_upscaled(filename):
+    return send_from_directory(str(UPSCALED_DIR), filename)
+
+@app.route("/api/extras")
+def api_extras():
+    upscaled = [f.name for f in UPSCALED_DIR.glob("*.mp4")] if UPSCALED_DIR.exists() else []
+    outputs  = list(OUTPUTS_DIR.glob("*.srt")) if OUTPUTS_DIR.exists() else []
+    srt      = [f.name for f in outputs]
+    return jsonify({"upscaled": upscaled, "srt": srt})
 
 # ── Static file serving ───────────────────────────────────────────────────────
 @app.route("/outputs/<filename>")
