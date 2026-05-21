@@ -113,5 +113,5 @@ if __name__ == "__main__":
     print(f"Audio folder  : {AUDIO_DIR}")
     print(f"Found {len(all_songs())} songs")
     print("\nStarting dashboard at http://localhost:5000")
-    threading.Timer(1.2, lambda: webbrowser.open("http://localhost:5000")).start()
-    app.run(debug=False, port=5000)
+    threading.Timer(1.2, lambda: webbrowser.open("http://localhost:5001")).start()
+    app.run(debug=False, port=5001)

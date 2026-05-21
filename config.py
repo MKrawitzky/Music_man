@@ -1,7 +1,13 @@
 """
 Central configuration — all paths defined here.
 """
+import os
 from pathlib import Path
+
+# Ensure ffmpeg is available for Whisper and MoviePy
+FFMPEG_BIN = Path("C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin")
+if FFMPEG_BIN.exists() and str(FFMPEG_BIN) not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = str(FFMPEG_BIN) + os.pathsep + os.environ.get("PATH", "")
 
 BASE_DIR    = Path(__file__).parent
 LYRICS_DIR  = Path("E:/Music/song lyrics")   # all .txt lyric files

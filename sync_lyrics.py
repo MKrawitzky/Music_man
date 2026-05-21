@@ -10,11 +10,17 @@ Output:
 """
 
 import json
+import os
 import re
 import torch
 import whisper
 from pathlib import Path
 from difflib import SequenceMatcher
+
+# Ensure ffmpeg is on PATH (installed via Chocolatey)
+FFMPEG_BIN = Path("C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin")
+if FFMPEG_BIN.exists() and str(FFMPEG_BIN) not in os.environ.get("PATH", ""):
+    os.environ["PATH"] = str(FFMPEG_BIN) + os.pathsep + os.environ.get("PATH", "")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 import argparse
