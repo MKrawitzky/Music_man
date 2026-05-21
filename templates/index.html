@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lyric Video Generator</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0a0a12;
+      color: #e0e0e0;
+      min-height: 100vh;
+    }
+    header {
+      background: linear-gradient(135deg, #1a0a2e, #0d1b3e);
+      padding: 24px 40px;
+      border-bottom: 1px solid #2a1a4e;
+    }
+    header h1 { font-size: 1.6rem; color: #c8a0f0; letter-spacing: 1px; }
+    header p  { font-size: 0.85rem; color: #888; margin-top: 4px; }
+    .container { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .step {
+      background: #14142a;
+      border: 1px solid #2a2a4a;
+      border-radius: 12px;
+      padding: 20px;
+      transition: border-color 0.2s;
+    }
+    .step:hover { border-color: #7060c0; }
+    .step-num {
+      font-size: 0.7rem;
+      color: #7060c0;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+    .step h3 { font-size: 1rem; color: #d0c0ff; margin-bottom: 6px; }
+    .step p  { font-size: 0.8rem; color: #888; line-height: 1.5; margin-bottom: 14px; }
+    .btn {
+      display: inline-block;
+      padding: 8px 18px;
+      border-radius: 8px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn:hover  { opacity: 0.85; transform: translateY(-1px); }
+    .btn:active { transform: translateY(0); }
+    .btn-primary  { background: #5a3ea0; color: #fff; }
+    .btn-success  { background: #2a7a4a; color: #fff; }
+    .btn-info     { background: #2a5a8a; color: #fff; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 0.72rem;
+      margin-left: 8px;
+    }
+    .badge-ok      { background: #1a4a2a; color: #6fda9a; }
+    .badge-missing { background: #4a1a1a; color: #da6f6f; }
+    .badge-running { background: #3a3a0a; color: #dada6f; }
+
+    .log-panel {
+      background: #0c0c1e;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      padding: 16px;
+      margin-top: 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.78rem;
+      color: #90e090;
+      height: 220px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+    .log-panel .err { color: #e07070; }
+
+    .section-title {
+      font-size: 0.7rem;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 12px;
+      margin-top: 32px;
+    }
+
+    .outputs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .output-card {
+      background: #14142a;
+      border: 1px solid #2a2a4a;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .output-card video, .output-card img {
+      width: 100%;
+      display: block;
+    }
+    .output-card .card-label {
+      padding: 10px 14px;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border: 2px solid #7060c0;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+<header>
+  <h1>Lyric Video Generator</h1>
+  <p>Free · Local · Powered by Stable Diffusion + SVD + Whisper</p>
+</header>
+
+<div class="container">
+
+  <!-- Pipeline Steps -->
+  <div class="section-title">Pipeline</div>
+  <div class="pipeline">
+
+    <div class="step">
+      <div class="step-num">Step 1</div>
+      <h3>Sync Lyrics <span id="badge-sync" class="status-badge badge-missing">Not synced</span></h3>
+      <p>Whisper auto-detects timestamps for each lyric line from your audio file.</p>
+      <button class="btn btn-primary" onclick="runJob('sync')">Run Whisper Sync</button>
+    </div>
+
+    <div class="step">
+      <div class="step-num">Step 2</div>
+      <h3>Generate Images <span id="badge-backgrounds" class="status-badge badge-missing">0 images</span></h3>
+      <p>Stable Diffusion creates a cinematic background image for each song section.</p>
+      <button class="btn btn-primary" onclick="runJob('backgrounds')">Generate Backgrounds</button>
+    </div>
+
+    <div class="step">
+      <div class="step-num">Step 3</div>
+      <h3>Animate with SVD <span id="badge-animate" class="status-badge badge-missing">0 videos</span></h3>
+      <p>Stable Video Diffusion animates each still image into a short looping clip.</p>
+      <button class="btn btn-info" onclick="runJob('animate')">Animate Backgrounds</button>
+    </div>
+
+    <div class="step">
+      <div class="step-num">Step 4</div>
+      <h3>Render Video <span id="badge-render" class="status-badge badge-missing">No output</span></h3>
+      <p>Combine lyrics, audio, and animated backgrounds into a YouTube-ready MP4.</p>
+      <button class="btn btn-success" onclick="runJob('render')">Render Lyric Video</button>
+    </div>
+
+  </div>
+
+  <!-- Log Panel -->
+  <div class="section-title">Output Log <span id="log-label" style="color:#666;font-size:0.75rem;margin-left:8px;"></span></div>
+  <div class="log-panel" id="log-panel">Waiting for a job to start…</div>
+
+  <!-- Output Videos -->
+  <div class="section-title" style="margin-top:40px;">Output Videos</div>
+  <div class="outputs-grid" id="outputs-grid">
+    <p style="color:#555;font-size:0.85rem;">No output videos yet.</p>
+  </div>
+
+  <!-- Background Previews -->
+  <div class="section-title" style="margin-top:40px;">Background Images</div>
+  <div class="outputs-grid" id="bg-grid">
+    <p style="color:#555;font-size:0.85rem;">No backgrounds generated yet.</p>
+  </div>
+
+  <!-- Animated Background Previews -->
+  <div class="section-title" style="margin-top:40px;">Animated Backgrounds (SVD)</div>
+  <div class="outputs-grid" id="vid-bg-grid">
+    <p style="color:#555;font-size:0.85rem;">No animated backgrounds yet.</p>
+  </div>
+
+</div>
+
+<script>
+  let activeJob = null;
+  let pollTimer = null;
+
+  async function refreshStatus() {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+
+    // Badges
+    const song = data.songs[0] || {};
+    setBadge('sync', song.has_timestamps ? 'badge-ok' : 'badge-missing',
+             song.has_timestamps ? 'Synced' : 'Not synced');
+    setBadge('backgrounds', data.bg_images.length > 0 ? 'badge-ok' : 'badge-missing',
+             data.bg_images.length + ' images');
+    setBadge('animate', data.bg_videos.length > 0 ? 'badge-ok' : 'badge-missing',
+             data.bg_videos.length + ' videos');
+    setBadge('render', data.outputs.length > 0 ? 'badge-ok' : 'badge-missing',
+             data.outputs.length > 0 ? 'Ready' : 'No output');
+
+    // Output videos
+    const og = document.getElementById('outputs-grid');
+    if (data.outputs.length) {
+      og.innerHTML = data.outputs.map(f => `
+        <div class="output-card">
+          <video controls src="/outputs/${f}"></video>
+          <div class="card-label">${f}</div>
+        </div>`).join('');
+    } else {
+      og.innerHTML = '<p style="color:#555;font-size:0.85rem;">No output videos yet.</p>';
+    }
+
+    // Background images
+    const bg = document.getElementById('bg-grid');
+    if (data.bg_images.length) {
+      bg.innerHTML = data.bg_images.map(f => `
+        <div class="output-card">
+          <img src="/backgrounds/${f}" loading="lazy"/>
+          <div class="card-label">${f}</div>
+        </div>`).join('');
+    } else {
+      bg.innerHTML = '<p style="color:#555;font-size:0.85rem;">No backgrounds generated yet.</p>';
+    }
+
+    // Animated backgrounds
+    const vb = document.getElementById('vid-bg-grid');
+    if (data.bg_videos.length) {
+      vb.innerHTML = data.bg_videos.map(f => `
+        <div class="output-card">
+          <video autoplay loop muted src="/video_backgrounds/${f}"></video>
+          <div class="card-label">${f}</div>
+        </div>`).join('');
+    } else {
+      vb.innerHTML = '<p style="color:#555;font-size:0.85rem;">No animated backgrounds yet.</p>';
+    }
+  }
+
+  function setBadge(id, cls, text) {
+    const el = document.getElementById('badge-' + id);
+    el.className = 'status-badge ' + cls;
+    el.textContent = text;
+  }
+
+  async function runJob(job) {
+    const res = await fetch('/api/run/' + job, { method: 'POST' });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+
+    activeJob = job;
+    document.getElementById('log-panel').textContent = '';
+    document.getElementById('log-label').innerHTML = `<span class="spinner"></span> Running: ${job}`;
+    pollLog();
+  }
+
+  function pollLog() {
+    if (!activeJob) return;
+    clearTimeout(pollTimer);
+
+    fetch('/api/log/' + activeJob).then(r => r.json()).then(data => {
+      const panel = document.getElementById('log-panel');
+      panel.textContent = data.lines.join('\n');
+      panel.scrollTop = panel.scrollHeight;
+
+      if (data.done) {
+        document.getElementById('log-label').textContent = data.error ? '⚠ Error' : '✓ Done';
+        activeJob = null;
+        refreshStatus();
+      } else {
+        pollTimer = setTimeout(pollLog, 1000);
+      }
+    });
+  }
+
+  // Init
+  refreshStatus();
+  setInterval(refreshStatus, 10000);
+</script>
+</body>
+</html>
