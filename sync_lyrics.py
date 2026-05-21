@@ -92,14 +92,12 @@ def similarity(a, b):
 def match_lyrics_to_segments(lyric_lines, whisper_result):
     """
     Match each lyric line to the closest Whisper segment by text similarity.
-    Returns list of (start_time, end_time) per lyric line.
+    Also captures word-level timestamps for karaoke highlighting.
     """
-    segments = whisper_result["segments"]
-    lyric_only = [l for l in lyric_lines if l["type"] == "lyric"]
-    seg_texts  = [s["text"].strip() for s in segments]
-
-    matched = {}
+    segments  = whisper_result["segments"]
+    matched   = {}
     used_segs = set()
+    lyric_only = [l for l in lyric_lines if l["type"] == "lyric"]
 
     for i, lyric in enumerate(lyric_only):
         best_score = 0
@@ -113,10 +111,20 @@ def match_lyrics_to_segments(lyric_lines, whisper_result):
                 best_seg   = j
 
         if best_seg is not None and best_score > 0.3:
+            seg = segments[best_seg]
+            # Extract word-level timestamps if available
+            words = []
+            for w in seg.get("words", []):
+                words.append({
+                    "word":  w["word"].strip(),
+                    "start": round(w["start"], 3),
+                    "end":   round(w["end"],   3),
+                })
             matched[i] = {
-                "start": segments[best_seg]["start"],
-                "end":   segments[best_seg]["end"],
-                "score": round(best_score, 2),
+                "start":  seg["start"],
+                "end":    seg["end"],
+                "score":  round(best_score, 2),
+                "words":  words,
             }
             used_segs.add(best_seg)
 
@@ -142,10 +150,11 @@ def build_timestamps(lyric_lines, matched, audio_duration):
         if i in lyric_match_map:
             m = lyric_match_map[i]
             result.append({
-                "type":  line["type"],
-                "text":  line["text"],
-                "start": m["start"],
-                "end":   m["end"],
+                "type":   line["type"],
+                "text":   line["text"],
+                "start":  m["start"],
+                "end":    m["end"],
+                "words":  m.get("words", []),
                 "synced": True,
             })
         else:
