@@ -13,7 +13,7 @@ from moviepy import AudioFileClip, ImageClip, VideoFileClip, concatenate_videocl
 # ── Config (resolved per-song via --song arg) ─────────────────────────────────
 import sys, argparse
 sys.path.insert(0, str(Path(__file__).parent))
-from config import LYRICS_DIR, TS_DIR, OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, find_audio, all_songs
+from config import LYRICS_DIR, TS_DIR, OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, find_audio, all_songs, find_background
 
 def resolve_song(song_name):
     songs = {s["name"]: s for s in all_songs()}
@@ -134,33 +134,36 @@ SECTION_TO_BG = {
 }
 
 def load_background_clip(section_label, duration):
-    """Returns a MoviePy clip (video or image) for the given section and duration."""
-    key = SECTION_TO_BG.get(section_label) if section_label else None
+    """
+    Returns (MoviePy clip, is_video) using Option 4 priority:
+    own clips > Wan2.1 > SVD > SD still image > solid color
+    """
+    from moviepy import concatenate_videoclips as _cat
 
-    if key:
-        # Prefer animated SVD video clip
-        video_path = VIDEO_BG_DIR / f"{key}.mp4"
-        if video_path.exists():
-            clip = VideoFileClip(str(video_path)).resized((WIDTH, HEIGHT))
-            # Loop the clip to fill the required duration
-            if clip.duration < duration:
-                loops = int(duration / clip.duration) + 1
-                from moviepy import concatenate_videoclips as _cat
-                clip = _cat([clip] * loops).subclipped(0, duration)
-            else:
-                clip = clip.subclipped(0, duration)
-            # Darken for text readability
-            clip = clip.with_effects([])
-            return clip, True
+    if section_label:
+        bg_path, bg_type = find_background(section_label)
+    else:
+        bg_path, bg_type = None, None
 
-        # Fall back to static image
-        img_path = BACKGROUNDS_DIR / f"{key}.png"
-        if img_path.exists():
-            img = Image.open(img_path).convert("RGB").resize((WIDTH, HEIGHT), Image.LANCZOS)
-            overlay = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
-            img = Image.blend(img, overlay, 0.45)
-            return ImageClip(img, duration=duration), False
+    if bg_path and bg_type in ("clip", "wan", "svd"):
+        clip = VideoFileClip(str(bg_path)).resized((WIDTH, HEIGHT))
+        # Loop to fill duration
+        if clip.duration < duration:
+            loops = int(duration / clip.duration) + 1
+            clip = _cat([clip] * loops).subclipped(0, duration)
+        else:
+            clip = clip.subclipped(0, duration)
+        print(f"    BG [{bg_type.upper()}] {bg_path.name}")
+        return clip, True
 
+    if bg_path and bg_type == "image":
+        img = Image.open(bg_path).convert("RGB").resize((WIDTH, HEIGHT), Image.LANCZOS)
+        overlay = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
+        img = Image.blend(img, overlay, 0.45)
+        print(f"    BG [IMAGE] {bg_path.name}")
+        return ImageClip(img, duration=duration), False
+
+    # Fallback: solid dark background
     return ImageClip(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR), duration=duration), False
 
 # ── Frame rendering ───────────────────────────────────────────────────────────

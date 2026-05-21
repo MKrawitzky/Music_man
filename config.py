@@ -13,16 +13,39 @@ BASE_DIR    = Path(__file__).parent
 LYRICS_DIR  = Path("E:/Music/song lyrics")   # all .txt lyric files
 AUDIO_DIR   = Path("E:/Music/music")         # .mp3 files
 WAVE_DIR    = Path("E:/Music/music/Wave")    # .wav files (higher quality)
-OUTPUTS_DIR = BASE_DIR / "outputs"
-BG_DIR      = BASE_DIR / "backgrounds"
-VIDEO_BG_DIR = BASE_DIR / "video_backgrounds"
-TS_DIR      = BASE_DIR / "timestamps"        # per-song timestamp JSONs
-HF_CACHE    = "E:/hf-cache"
+OUTPUTS_DIR  = BASE_DIR / "outputs"
+BG_DIR       = BASE_DIR / "backgrounds"
+VIDEO_BG_DIR = BASE_DIR / "video_backgrounds"  # SVD animated clips
+WAN_DIR      = BASE_DIR / "wan_videos"          # Wan2.1 text-to-video clips
+CLIPS_DIR    = BASE_DIR / "clips"               # your own footage (drop MP4s here)
+TS_DIR       = BASE_DIR / "timestamps"
+HF_CACHE     = "E:/hf-cache"
 
-OUTPUTS_DIR.mkdir(exist_ok=True)
-BG_DIR.mkdir(exist_ok=True)
-VIDEO_BG_DIR.mkdir(exist_ok=True)
-TS_DIR.mkdir(exist_ok=True)
+for d in [OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, TS_DIR]:
+    d.mkdir(exist_ok=True)
+
+# ── Section key helper ────────────────────────────────────────────────────────
+def section_key(label: str) -> str:
+    """Normalize section label to filename key. e.g. 'FINAL CHORUS' -> 'final_chorus'"""
+    return label.lower().strip().replace(" ", "_").replace("-", "_")
+
+# ── Background priority system (Option 4) ─────────────────────────────────────
+def find_background(section_label: str):
+    """
+    Returns (path, type) for the best available background for a section.
+    Priority: own clips > Wan2.1 > SVD animated > SD still image > None
+    """
+    key = section_key(section_label)
+    candidates = [
+        (CLIPS_DIR    / f"{key}.mp4",  "clip"),   # your own footage
+        (WAN_DIR      / f"{key}.mp4",  "wan"),    # Wan2.1 text-to-video
+        (VIDEO_BG_DIR / f"{key}.mp4",  "svd"),    # SVD animated
+        (BG_DIR       / f"{key}.png",  "image"),  # SD still image
+    ]
+    for path, bg_type in candidates:
+        if path.exists():
+            return path, bg_type
+    return None, None
 
 WIDTH, HEIGHT = 1920, 1080
 FPS = 24

@@ -154,26 +154,43 @@
       <div class="step-status" id="dot-backgrounds"></div>
       <div class="step-num">Step 2</div>
       <h3>Generate Images</h3>
-      <p>Stable Diffusion creates a cinematic background image for each song section.</p>
-      <button class="btn btn-purple" id="btn-backgrounds" onclick="runJob('backgrounds')" disabled>Generate Backgrounds</button>
+      <p>Stable Diffusion creates a still background image for each song section.</p>
+      <button class="btn btn-purple" id="btn-backgrounds" onclick="runJob('backgrounds')" disabled>Generate Images</button>
     </div>
 
     <div class="step" id="step-animate">
       <div class="step-status" id="dot-animate"></div>
-      <div class="step-num">Step 3</div>
+      <div class="step-num">Step 3a</div>
       <h3>Animate with SVD</h3>
-      <p>Stable Video Diffusion turns each still image into a looping cinematic clip.</p>
-      <button class="btn btn-blue" id="btn-animate" onclick="runJob('animate')" disabled>Animate Backgrounds</button>
+      <p>Animates still images into looping clips using Stable Video Diffusion.</p>
+      <button class="btn btn-blue" id="btn-animate" onclick="runJob('animate')" disabled>Animate (SVD)</button>
+    </div>
+
+    <div class="step" id="step-wan">
+      <div class="step-status" id="dot-wan"></div>
+      <div class="step-num">Step 3b</div>
+      <h3>Generate with Wan2.1</h3>
+      <p>Text-to-video — generates cinematic clips directly from prompts. No image needed.</p>
+      <button class="btn btn-blue" id="btn-wan" onclick="runJob('wan')" disabled>Generate (Wan2.1)</button>
     </div>
 
     <div class="step" id="step-render">
       <div class="step-status" id="dot-render"></div>
       <div class="step-num">Step 4</div>
       <h3>Render Lyric Video</h3>
-      <p>Combines your lyrics, audio, and animated backgrounds into a YouTube MP4.</p>
+      <p>Mixes your footage + Wan2.1 + SVD + images into a YouTube-ready MP4.</p>
       <button class="btn btn-green" id="btn-render" onclick="runJob('render')" disabled>Render Video</button>
     </div>
 
+  </div>
+
+  <!-- Own Footage Drop Zone -->
+  <div class="section-title" style="margin-top:28px;">Your Own Footage</div>
+  <div style="background:#14142a;border:1px dashed #3a2a6a;border-radius:12px;padding:20px;font-size:0.82rem;color:#888;line-height:1.7;">
+    Drop your own MP4 clips into <code style="color:#c8a0f0">E:\Music\lyric-video-generator\clips\</code><br>
+    Name them after the section: <code style="color:#c8a0f0">verse_1.mp4</code>, <code style="color:#c8a0f0">chorus.mp4</code>, <code style="color:#c8a0f0">bridge.mp4</code>, etc.<br>
+    <span style="color:#6fda9a">Your clips take priority</span> over Wan2.1, SVD, and images automatically.
+    <div id="clips-list" style="margin-top:10px;color:#6fda9a;font-size:0.78rem;"></div>
   </div>
 
   <!-- Log -->
@@ -193,7 +210,10 @@
   <div class="outputs-grid" id="bg-grid"><p class="empty">No backgrounds generated yet.</p></div>
 
   <div class="section-title" style="margin-top:28px;">Animated Backgrounds (SVD)</div>
-  <div class="outputs-grid" id="vid-bg-grid"><p class="empty">No animated backgrounds yet.</p></div>
+  <div class="outputs-grid" id="vid-bg-grid"><p class="empty">No SVD clips yet.</p></div>
+
+  <div class="section-title" style="margin-top:28px;">Wan2.1 Text-to-Video Clips</div>
+  <div class="outputs-grid" id="wan-grid"><p class="empty">No Wan2.1 clips yet.</p></div>
 
 </div>
 
@@ -241,6 +261,7 @@
     document.getElementById('btn-sync').disabled        = !(hasSong && hasAudio);
     document.getElementById('btn-backgrounds').disabled = !hasSong;
     document.getElementById('btn-animate').disabled     = !hasSong;
+    document.getElementById('btn-wan').disabled         = !hasSong;
     document.getElementById('btn-render').disabled      = !(hasSong && hasAudio);
   }
 
@@ -316,8 +337,18 @@
 
     const vb = document.getElementById('vid-bg-grid');
     vb.innerHTML = bgData.videos.length
-      ? bgData.videos.map(f => `<div class="media-card"><video autoplay loop muted src="/video_backgrounds/${encodeURIComponent(f)}"></video><div class="label">${f}</div></div>`).join('')
-      : '<p class="empty">No animated backgrounds yet.</p>';
+      ? bgData.videos.map(f => `<div class="media-card"><video autoplay loop muted src="/video_backgrounds/${encodeURIComponent(f)}"></video><div class="label">SVD: ${f}</div></div>`).join('')
+      : '<p class="empty">No SVD clips yet.</p>';
+
+    const wg = document.getElementById('wan-grid');
+    if (wg) wg.innerHTML = bgData.wan.length
+      ? bgData.wan.map(f => `<div class="media-card"><video autoplay loop muted src="/wan_videos/${encodeURIComponent(f)}"></video><div class="label">Wan2.1: ${f}</div></div>`).join('')
+      : '<p class="empty">No Wan2.1 clips yet.</p>';
+
+    const cl = document.getElementById('clips-list');
+    if (cl) cl.innerHTML = bgData.clips.length
+      ? '✓ Your clips: ' + bgData.clips.join(', ')
+      : '';
   }
 
   // ── Init ────────────────────────────────────────────────────────────────────

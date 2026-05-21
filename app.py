@@ -10,7 +10,7 @@ from pathlib import Path
 from flask import Flask, render_template, jsonify, send_from_directory, request
 from config import (
     BASE_DIR, LYRICS_DIR, AUDIO_DIR, OUTPUTS_DIR,
-    BG_DIR, VIDEO_BG_DIR, TS_DIR, all_songs
+    BG_DIR, VIDEO_BG_DIR, WAN_DIR, CLIPS_DIR, TS_DIR, all_songs
 )
 
 app = Flask(__name__)
@@ -58,6 +58,7 @@ def run_job(job):
         "sync":        "sync_lyrics.py",
         "backgrounds": "generate_backgrounds.py",
         "animate":     "generate_video_backgrounds.py",
+        "wan":         "generate_wan_videos.py",
         "render":      "lyric_video.py",
     }
     if job not in jobs:
@@ -85,9 +86,19 @@ def api_outputs():
 
 @app.route("/api/backgrounds")
 def api_backgrounds():
-    images = [f.name for f in BG_DIR.glob("*.png")] if BG_DIR.exists() else []
-    videos = [f.name for f in VIDEO_BG_DIR.glob("*.mp4")] if VIDEO_BG_DIR.exists() else []
-    return jsonify({"images": images, "videos": videos})
+    images  = [f.name for f in BG_DIR.glob("*.png")]       if BG_DIR.exists()       else []
+    videos  = [f.name for f in VIDEO_BG_DIR.glob("*.mp4")] if VIDEO_BG_DIR.exists() else []
+    wan     = [f.name for f in WAN_DIR.glob("*.mp4")]       if WAN_DIR.exists()      else []
+    clips   = [f.name for f in CLIPS_DIR.glob("*.mp4")]     if CLIPS_DIR.exists()    else []
+    return jsonify({"images": images, "videos": videos, "wan": wan, "clips": clips})
+
+@app.route("/wan_videos/<filename>")
+def serve_wan(filename):
+    return send_from_directory(str(WAN_DIR), filename)
+
+@app.route("/clips/<filename>")
+def serve_clip(filename):
+    return send_from_directory(str(CLIPS_DIR), filename)
 
 # ── Static file serving ───────────────────────────────────────────────────────
 @app.route("/outputs/<filename>")
