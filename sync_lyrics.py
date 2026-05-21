@@ -17,10 +17,10 @@ import whisper
 from pathlib import Path
 from difflib import SequenceMatcher
 
-# Ensure ffmpeg is on PATH (installed via Chocolatey)
-FFMPEG_BIN = Path("C:/ProgramData/chocolatey/lib/ffmpeg/tools/ffmpeg/bin")
-if FFMPEG_BIN.exists() and str(FFMPEG_BIN) not in os.environ.get("PATH", ""):
-    os.environ["PATH"] = str(FFMPEG_BIN) + os.pathsep + os.environ.get("PATH", "")
+# Ensure ffmpeg is on PATH — use the bundled binary from imageio_ffmpeg
+import imageio_ffmpeg as _iio_ffmpeg
+_ffmpeg_exe = Path(_iio_ffmpeg.get_ffmpeg_exe())
+os.environ["PATH"] = str(_ffmpeg_exe.parent) + os.pathsep + os.environ.get("PATH", "")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 import argparse
