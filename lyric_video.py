@@ -8,12 +8,13 @@ import re
 from pathlib import Path
 from mutagen.wave import WAVE
 from PIL import Image, ImageDraw, ImageFont
-from moviepy import AudioFileClip, ImageClip, concatenate_videoclips
+from moviepy import AudioFileClip, ImageClip, VideoFileClip, concatenate_videoclips, CompositeVideoClip
 
 # ── Config ────────────────────────────────────────────────────────────────────
 AUDIO_PATH       = Path("songs/wave/Love is a battlefield (the death of me).wav")
 LYRICS_PATH      = Path("songs/wave/Love is a battlefield ( the death of me).txt")
 BACKGROUNDS_DIR  = Path("backgrounds")
+VIDEO_BG_DIR     = Path("video_backgrounds")   # SVD-animated clips
 OUTPUT_PATH      = Path("outputs/lyric_video.mp4")
 
 OUTPUT_PATH.parent.mkdir(exist_ok=True)
@@ -67,7 +68,29 @@ def parse_lyrics(path):
             lines.append(("lyric", line, None))
     return lines
 
-def assign_timings(lines, duration):
+def assign_timings(lines, duration, timestamps_path=None):
+    """
+    If a timestamps.json file exists (from sync_lyrics.py), use those exact timings.
+    Otherwise distribute lyrics evenly across the song duration.
+    """
+    import json
+
+    if timestamps_path and Path(timestamps_path).exists():
+        print("  Using Whisper-synced timestamps.")
+        data = json.loads(Path(timestamps_path).read_text(encoding="utf-8"))
+        timings = []
+        for i, entry in enumerate(data):
+            start = entry["start"]
+            end   = entry["end"]
+            # Duration is gap to next line's start (not just end-start)
+            if i + 1 < len(data):
+                dur = data[i + 1]["start"] - start
+            else:
+                dur = end - start
+            timings.append(max(dur, 0.2))
+        return timings
+
+    print("  No timestamps found — distributing evenly.")
     lyric_count   = sum(1 for t, _, _ in lines if t == "lyric")
     section_count = sum(1 for t, _, _ in lines if t == "section")
     blank_count   = sum(1 for t, _, _ in lines if t == "blank")
@@ -89,26 +112,45 @@ def assign_timings(lines, duration):
 
 # ── Background loading ────────────────────────────────────────────────────────
 SECTION_TO_BG = {
-    "VERSE 1":      "verse_1.png",
-    "VERSE 2":      "verse_2.png",
-    "PRE-CHORUS":   "pre-chorus.png",
-    "CHORUS":       "chorus.png",
-    "VERSE 3":      "verse_3.png",
-    "BRIDGE":       "bridge.png",
-    "FINAL CHORUS": "final_chorus.png",
-    "OUTRO":        "outro.png",
+    "VERSE 1":      "verse_1",
+    "VERSE 2":      "verse_2",
+    "PRE-CHORUS":   "pre-chorus",
+    "CHORUS":       "chorus",
+    "VERSE 3":      "verse_3",
+    "BRIDGE":       "bridge",
+    "FINAL CHORUS": "final_chorus",
+    "OUTRO":        "outro",
 }
 
-def load_background(section_label):
-    if section_label and section_label in SECTION_TO_BG:
-        bg_path = BACKGROUNDS_DIR / SECTION_TO_BG[section_label]
-        if bg_path.exists():
-            img = Image.open(bg_path).convert("RGB").resize((WIDTH, HEIGHT), Image.LANCZOS)
-            # darken slightly so text is readable
+def load_background_clip(section_label, duration):
+    """Returns a MoviePy clip (video or image) for the given section and duration."""
+    key = SECTION_TO_BG.get(section_label) if section_label else None
+
+    if key:
+        # Prefer animated SVD video clip
+        video_path = VIDEO_BG_DIR / f"{key}.mp4"
+        if video_path.exists():
+            clip = VideoFileClip(str(video_path)).resized((WIDTH, HEIGHT))
+            # Loop the clip to fill the required duration
+            if clip.duration < duration:
+                loops = int(duration / clip.duration) + 1
+                from moviepy import concatenate_videoclips as _cat
+                clip = _cat([clip] * loops).subclipped(0, duration)
+            else:
+                clip = clip.subclipped(0, duration)
+            # Darken for text readability
+            clip = clip.with_effects([])
+            return clip, True
+
+        # Fall back to static image
+        img_path = BACKGROUNDS_DIR / f"{key}.png"
+        if img_path.exists():
+            img = Image.open(img_path).convert("RGB").resize((WIDTH, HEIGHT), Image.LANCZOS)
             overlay = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
             img = Image.blend(img, overlay, 0.45)
-            return img
-    return Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR)
+            return ImageClip(img, duration=duration), False
+
+    return ImageClip(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR), duration=duration), False
 
 # ── Frame rendering ───────────────────────────────────────────────────────────
 def wrap_text(text, font, max_width, draw):
@@ -152,23 +194,62 @@ def make_frame(text, ltype, bg_img):
 
     return img
 
+# ── Text overlay rendering ────────────────────────────────────────────────────
+def make_text_overlay(text, ltype, duration):
+    """Creates a transparent text overlay clip to composite over video background."""
+    img = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
+    if not text:
+        return ImageClip(np.array(img.convert("RGB")), duration=duration).with_opacity(0)
+
+    draw  = ImageDraw.Draw(img)
+    font  = FONT_SECTION if ltype == "section" else FONT_LYRICS
+    color = SECTION_COLOR if ltype == "section" else TEXT_COLOR
+    max_w = int(WIDTH * 0.8)
+
+    wrapped     = wrap_text(text, font, max_w, draw)
+    line_height = font.size + 16
+    total_h     = len(wrapped) * line_height
+    y           = (HEIGHT - total_h) // 2
+
+    for line in wrapped:
+        bbox   = draw.textbbox((0, 0), line, font=font)
+        line_w = bbox[2] - bbox[0]
+        x      = (WIDTH - line_w) // 2
+        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0, 200))  # shadow
+        draw.text((x, y), line, font=font, fill=(*color, 255))
+        y += line_height
+
+    return ImageClip(np.array(img.convert("RGB")), duration=duration)
+
 # ── Build video ───────────────────────────────────────────────────────────────
 def build_video(lines, durations, audio_path, output_path):
+    import numpy as np
     clips = []
     current_section = None
-    bg_img = load_background(None)
 
     print(f"Building {len(lines)} clips...")
     for i, ((ltype, text, section_label), dur) in enumerate(zip(lines, durations)):
         if ltype == "section":
             current_section = text
-            bg_img = load_background(current_section)
 
-        frame = make_frame(text if ltype != "blank" else "", ltype, bg_img)
-        fade  = min(0.3, dur * 0.25)
-        clip  = ImageClip(frame, duration=dur).crossfadein(fade).crossfadeout(fade)
+        bg_clip, is_video = load_background_clip(current_section, dur)
+        text_content = text if ltype != "blank" else ""
+        fade = min(0.3, dur * 0.25)
+
+        if is_video:
+            # Darken video background, composite text on top
+            bg_clip = bg_clip.with_effects([])
+            text_clip = make_text_overlay(text_content, ltype, dur)
+            clip = CompositeVideoClip([bg_clip, text_clip]).crossfadein(fade).crossfadeout(fade)
+        else:
+            # Static image path (original behavior)
+            bg_img = bg_clip.get_frame(0)
+            from PIL import Image as _Image
+            bg_pil = _Image.fromarray(bg_img)
+            frame = make_frame(text_content, ltype, bg_pil)
+            clip = ImageClip(np.array(frame), duration=dur).crossfadein(fade).crossfadeout(fade)
+
         clips.append(clip)
-
         if i % 10 == 0:
             print(f"  {i}/{len(lines)}")
 
@@ -196,5 +277,6 @@ if __name__ == "__main__":
     duration   = audio_info.info.length
     print(f"  {duration:.1f}s ({duration/60:.1f} min)")
 
-    durations = assign_timings(lines, duration)
+    timestamps_path = LYRICS_PATH.parent / "timestamps.json"
+    durations = assign_timings(lines, duration, timestamps_path)
     build_video(lines, durations, AUDIO_PATH, OUTPUT_PATH)
