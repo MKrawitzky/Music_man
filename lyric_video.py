@@ -5,10 +5,11 @@ Output: 1920x1080, 16:9, H.264
 """
 
 import re
+import numpy as np
 from pathlib import Path
 from mutagen.wave import WAVE
 from PIL import Image, ImageDraw, ImageFont
-from moviepy import AudioFileClip, ImageClip, VideoFileClip, concatenate_videoclips, CompositeVideoClip
+from moviepy import AudioFileClip, ImageClip, VideoFileClip, VideoClip, concatenate_videoclips, CompositeVideoClip
 
 # ── Config (resolved per-song via --song arg) ─────────────────────────────────
 import sys, argparse
@@ -162,10 +163,10 @@ def load_background_clip(section_label, duration):
         overlay = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
         img = Image.blend(img, overlay, 0.45)
         print(f"    BG [IMAGE] {bg_path.name}")
-        return ImageClip(img, duration=duration), False
+        return ImageClip(np.array(img), duration=duration), False
 
     # Fallback: solid dark background
-    return ImageClip(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR), duration=duration), False
+    return ImageClip(np.array(Image.new("RGB", (WIDTH, HEIGHT), BG_COLOR)), duration=duration), False
 
 # ── Karaoke renderer ──────────────────────────────────────────────────────────
 # Colors
@@ -283,8 +284,6 @@ def build_video(lines, durations, timestamps, audio_path, output_path):
     durations  : seconds per line
     timestamps : list of dicts from timestamps.json (includes word timings)
     """
-    import numpy as np
-    from moviepy import VideoClip
 
     clips = []
     current_section = None
