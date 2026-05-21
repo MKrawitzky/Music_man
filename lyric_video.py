@@ -10,6 +10,7 @@ from pathlib import Path
 from mutagen.wave import WAVE
 from PIL import Image, ImageDraw, ImageFont
 from moviepy import AudioFileClip, ImageClip, VideoFileClip, VideoClip, concatenate_videoclips, CompositeVideoClip
+from moviepy.video.fx import CrossFadeIn, CrossFadeOut
 
 # ── Config (resolved per-song via --song arg) ─────────────────────────────────
 import sys, argparse
@@ -337,7 +338,7 @@ def build_video(lines, durations, timestamps, audio_path, output_path):
 
             clip = VideoClip(make_frame_fn, duration=dur)
 
-        clip = clip.with_fps(FPS).crossfadein(fade).crossfadeout(fade)
+        clip = clip.with_fps(FPS).with_effects([CrossFadeIn(fade), CrossFadeOut(fade)])
         clips.append(clip)
 
         if i % 10 == 0:
