@@ -17,9 +17,21 @@ from pathlib import Path
 from difflib import SequenceMatcher
 
 # ── Config ────────────────────────────────────────────────────────────────────
-AUDIO_PATH   = Path("songs/wave/Love is a battlefield (the death of me).wav")
-LYRICS_PATH  = Path("songs/wave/Love is a battlefield ( the death of me).txt")
-OUTPUT_PATH  = Path("songs/wave/timestamps.json")
+import argparse
+import sys
+sys.path.insert(0, str(Path(__file__).parent))
+from config import LYRICS_DIR, TS_DIR, find_audio, all_songs
+
+def resolve_song(song_name):
+    songs = {s["name"]: s for s in all_songs()}
+    if song_name not in songs:
+        print(f"ERROR: Song '{song_name}' not found in {LYRICS_DIR}")
+        sys.exit(1)
+    s = songs[song_name]
+    if not s["has_audio"]:
+        print(f"ERROR: No audio file found for '{song_name}'")
+        sys.exit(1)
+    return s["lyrics_path"], s["audio_path"], TS_DIR / f"{song_name}.json"
 
 # Whisper model size: tiny/base/small/medium/large
 # "medium" gives great accuracy and runs well on RTX 5070
@@ -151,27 +163,30 @@ def build_timestamps(lyric_lines, matched, audio_duration):
     return result
 
 # ── Main ──────────────────────────────────────────────────────────────────────
-def main():
+if __name__ == "__main__":
+    import argparse, sys
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--song", required=True, help="Song name matching a .txt in the lyrics folder")
+    args = parser.parse_args()
+
+    LYRICS_PATH, AUDIO_PATH, OUTPUT_PATH = resolve_song(args.song)
+    print(f"Song   : {args.song}")
+    print(f"Lyrics : {LYRICS_PATH}")
+    print(f"Audio  : {AUDIO_PATH}\n")
+
     print("Parsing lyrics...")
     lyric_lines = parse_lyrics(LYRICS_PATH)
     print(f"  {len(lyric_lines)} lines found")
 
     whisper_result = transcribe(AUDIO_PATH)
     audio_duration = whisper_result["segments"][-1]["end"] if whisper_result["segments"] else 0
-    print(f"  Audio duration from Whisper: {audio_duration:.1f}s")
+    print(f"  Audio duration: {audio_duration:.1f}s")
 
     print("Matching lyrics to transcription...")
     lyric_only = [l for l in lyric_lines if l["type"] == "lyric"]
     matched = match_lyrics_to_segments(lyric_only, whisper_result)
-    synced_count = len(matched)
-    print(f"  Synced {synced_count}/{len(lyric_only)} lyric lines")
+    print(f"  Synced {len(matched)}/{len(lyric_only)} lyric lines")
 
     timestamps = build_timestamps(lyric_lines, matched, audio_duration)
-
-    OUTPUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_PATH.write_text(json.dumps(timestamps, indent=2), encoding="utf-8")
     print(f"\nTimestamps saved → {OUTPUT_PATH}")
-    print("Run lyric_video.py to render the synced video.")
-
-if __name__ == "__main__":
-    main()

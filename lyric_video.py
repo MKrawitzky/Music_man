@@ -10,14 +10,25 @@ from mutagen.wave import WAVE
 from PIL import Image, ImageDraw, ImageFont
 from moviepy import AudioFileClip, ImageClip, VideoFileClip, concatenate_videoclips, CompositeVideoClip
 
-# ── Config ────────────────────────────────────────────────────────────────────
-AUDIO_PATH       = Path("songs/wave/Love is a battlefield (the death of me).wav")
-LYRICS_PATH      = Path("songs/wave/Love is a battlefield ( the death of me).txt")
-BACKGROUNDS_DIR  = Path("backgrounds")
-VIDEO_BG_DIR     = Path("video_backgrounds")   # SVD-animated clips
-OUTPUT_PATH      = Path("outputs/lyric_video.mp4")
+# ── Config (resolved per-song via --song arg) ─────────────────────────────────
+import sys, argparse
+sys.path.insert(0, str(Path(__file__).parent))
+from config import LYRICS_DIR, TS_DIR, OUTPUTS_DIR, BG_DIR, VIDEO_BG_DIR, find_audio, all_songs
 
-OUTPUT_PATH.parent.mkdir(exist_ok=True)
+def resolve_song(song_name):
+    songs = {s["name"]: s for s in all_songs()}
+    if song_name not in songs:
+        print(f"ERROR: Song '{song_name}' not found.")
+        sys.exit(1)
+    s = songs[song_name]
+    return s["lyrics_path"], s["audio_path"], OUTPUTS_DIR / f"{song_name}.mp4"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--song", required=True)
+_args = parser.parse_args()
+
+LYRICS_PATH, AUDIO_PATH, OUTPUT_PATH = resolve_song(_args.song)
+BACKGROUNDS_DIR = BG_DIR
 
 WIDTH, HEIGHT = 1920, 1080
 FPS = 24
@@ -277,6 +288,6 @@ if __name__ == "__main__":
     duration   = audio_info.info.length
     print(f"  {duration:.1f}s ({duration/60:.1f} min)")
 
-    timestamps_path = LYRICS_PATH.parent / "timestamps.json"
+    timestamps_path = TS_DIR / f"{_args.song}.json"
     durations = assign_timings(lines, duration, timestamps_path)
     build_video(lines, durations, AUDIO_PATH, OUTPUT_PATH)
